@@ -1,0 +1,19 @@
+<html>
+  <head>
+    <title>Hacker News Comments</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <h1><%= story.title %></h1>
+    <p><%= story.score %> points by <%= story.by %></p>
+    <hr>
+    <ul>
+      <% comments.forEach(comment => { %>
+        <li>
+          <p><strong><%= comment.by %></strong></p>
+          <%- comment.text %>
+        </li>
+      <% }); %>
+    </ul>
+  </body>
+</html>
