@@ -1,8 +1,17 @@
 <html>
   <head>
     <title>Hacker News</title>
+    <link rel="stylesheet" href="/style.css">
   </head>
   <body>
     <h1>Hacker News</h1>
+    <ol>
+      <% stories.forEach(story => { %>
+        <li>
+          <a href="<%= story.url %>"><%= story.title %></a>
+          <p><%= story.score %> points by <%= story.by %> | <a href="/comments/<%= story.id %>"><%= story.descendants %> comments</a></p>
+        </li>
+      <% }); %>
+    </ol>
   </body>
 </html>
