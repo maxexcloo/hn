@@ -1,5 +1,7 @@
 body {
   font-family: sans-serif;
+  background-color: #FFFFFF;
+  color: #000000;
 }
 
 ol {
@@ -19,4 +21,17 @@ a {
 p {
   color: #828282;
   font-size: 0.8em;
+}
+
+.dark-mode {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+.dark-mode a {
+  color: #ffffff;
+}
+
+.dark-mode p {
+  color: #828282;
 }

@@ -4,6 +4,7 @@
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
+    <button id="dark-mode-toggle">Toggle Dark Mode</button>
     <h1>Hacker News</h1>
     <ol>
       <% stories.forEach(story => { %>
@@ -13,5 +14,11 @@
         </li>
       <% }); %>
     </ol>
+    <script>
+      const darkModeToggle = document.getElementById('dark-mode-toggle');
+      darkModeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+      });
+    </script>
   </body>
 </html>
