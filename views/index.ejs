@@ -1,24 +1,166 @@
+<!DOCTYPE html>
 <html>
   <head>
-    <title>Hacker News</title>
-    <link rel="stylesheet" href="/style.css">
+    <title>HN</title>
+    <link rel="stylesheet" href="/output.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
   </head>
-  <body>
-    <button id="dark-mode-toggle">Toggle Dark Mode</button>
-    <h1>Hacker News</h1>
-    <ol>
-      <% stories.forEach(story => { %>
-        <li>
-          <a href="<%= story.url %>"><%= story.title %></a>
-          <p><%= story.score %> points by <%= story.by %> | <a href="/comments/<%= story.id %>"><%= story.descendants %> comments</a></p>
-        </li>
-      <% }); %>
-    </ol>
+  <body class="bg-white dark:bg-black font-verdana text-black text-xs dark:text-gray-200">
+    <div class="max-w-4xl mx-auto p-4">
+      <div class="font-bold mb-4 text-lg">
+        HN
+      </div>
+      
+      <div class="mb-4 text-xs" id="filters">
+        <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="top-10">Top 10</button>
+        <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="top-20">Top 20</button>
+        <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="top-50">Top 50%</button>
+        <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="homepage">Homepage</button>
+        <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="all">All</button>
+      </div>
+      
+      <div id="stories-container"></div>
+      
+      <div class="mt-8 text-center text-gray-500" id="loading">
+        Loading stories...
+      </div>
+    </div>
+    
     <script>
-      const darkModeToggle = document.getElementById('dark-mode-toggle');
-      darkModeToggle.addEventListener('click', () => {
-        document.body.classList.toggle('dark-mode');
+      const allStories = <%- allStories %>;
+      const currentFilter = '<%= currentFilter %>';
+      
+      // Group stories by day
+      function groupByDay(stories) {
+        const groups = {};
+        stories.forEach(story => {
+          const date = new Date(story.time * 1000).toDateString();
+          if (!groups[date]) groups[date] = [];
+          groups[date].push(story);
+        });
+        return groups;
+      }
+      
+      // Apply filter and display stories
+      function applyFilter(filter) {
+        const container = document.getElementById('stories-container');
+        const loading = document.getElementById('loading');
+        container.innerHTML = '';
+        
+        // Group stories by day (server already filtered to 7 days)
+        const dayGroups = groupByDay(allStories);
+        const sortedDays = Object.keys(dayGroups).sort((a, b) => new Date(b) - new Date(a));
+        
+        sortedDays.forEach(dateKey => {
+          const dayStories = dayGroups[dateKey];
+          let filteredDayStories;
+          
+          // Apply filter per day
+          switch(filter) {
+            case 'top-10':
+              filteredDayStories = dayStories
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 10)
+                .sort((a, b) => b.time - a.time);
+              break;
+            case 'top-20':
+              filteredDayStories = dayStories
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 20)
+                .sort((a, b) => b.time - a.time);
+              break;
+            case 'top-50':
+              const fiftyPercent = Math.ceil(dayStories.length * 0.5);
+              filteredDayStories = dayStories
+                .sort((a, b) => b.score - a.score)
+                .slice(0, fiftyPercent)
+                .sort((a, b) => b.time - a.time);
+              break;
+            case 'homepage':
+              // Homepage shows stories sorted by time (newest first)
+              filteredDayStories = dayStories.sort((a, b) => b.time - a.time);
+              break;
+            case 'all':
+            default:
+              filteredDayStories = dayStories.sort((a, b) => b.time - a.time);
+          }
+          
+          if (filteredDayStories.length > 0) {
+            const daySection = document.createElement('div');
+            daySection.className = 'mb-8';
+            daySection.innerHTML = `
+              <h2 class="text-sm font-bold mb-3 text-gray-600 dark:text-gray-400">${dateKey}</h2>
+              <ol class="list-none pl-0"></ol>
+            `;
+            
+            const list = daySection.querySelector('ol');
+            filteredDayStories.forEach((story, index) => {
+              const dayCount = index + 1; // Number 1-N per day
+              const li = document.createElement('li');
+              li.className = 'mb-2 flex items-start';
+              li.innerHTML = `
+                <span class="text-gray-500 text-xs mr-2 min-w-[20px] text-right">${dayCount}.</span>
+                <div class="flex-1">
+                  ${story.url ? 
+                    `<a href="${story.url}" class="text-black dark:text-gray-200 no-underline text-sm visited:text-gray-500 dark:visited:text-gray-400">${story.title}</a>
+                     <span class="text-gray-500 text-xs ml-1">(${new URL(story.url).hostname})</span>` :
+                    `<a href="/comments/${story.id}" class="text-black dark:text-gray-200 no-underline text-sm visited:text-gray-500 dark:visited:text-gray-400">${story.title}</a>`
+                  }
+                  <div class="text-gray-500 text-xs mt-0.5">
+                    ${story.score} points by ${story.by} | 
+                    <a href="/comments/${story.id}" class="text-gray-500 no-underline hover:underline">${story.descendants || 0} comments</a>
+                  </div>
+                </div>
+              `;
+              list.appendChild(li);
+            });
+            
+            container.appendChild(daySection);
+          }
+        });
+        
+        loading.style.display = 'none';
+        updateFilterButtons(filter);
+      }
+      
+      // Update filter button styles
+      function updateFilterButtons(activeFilter) {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+          const isActive = btn.dataset.filter === activeFilter;
+          btn.className = `filter-btn mr-2 px-2 py-1 rounded no-underline ${
+            isActive 
+              ? 'bg-gray-600 text-white' 
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+          }`;
+        });
+      }
+      
+      // Get filter from URL hash or default
+      function getFilterFromHash() {
+        const hash = window.location.hash.slice(1); // Remove #
+        const validFilters = ['top-10', 'top-20', 'top-50', 'homepage', 'all'];
+        return validFilters.includes(hash) ? hash : currentFilter;
+      }
+      
+      // Filter button click handlers
+      document.getElementById('filters').addEventListener('click', (e) => {
+        if (e.target.dataset.filter) {
+          e.preventDefault();
+          window.location.hash = e.target.dataset.filter;
+          applyFilter(e.target.dataset.filter);
+        }
       });
+      
+      // Handle hash changes (back/forward buttons)
+      window.addEventListener('hashchange', () => {
+        const filter = getFilterFromHash();
+        applyFilter(filter);
+      });
+      
+      // Initialize with hash filter if present
+      const initialFilter = getFilterFromHash();
+      applyFilter(initialFilter);
     </script>
   </body>
 </html>
+
