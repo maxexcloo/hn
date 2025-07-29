@@ -37,6 +37,19 @@ npm run build    # Build for production
 - **Naming**: camelCase for variables/functions, kebab-case for CSS classes
 - **Trailing newlines**: Required in all files
 
+## Project Specs
+- **API**: Hacker News Firebase API (`topstories.json`, item endpoints)
+- **Architecture**: Server-side rendering with client-side filtering
+- **Cache**: 5-minute expiry with 1000-item size limit, auto-refresh on startup
+- **Comments**: Collapsible threading with 12px indentation levels
+- **Deployment**: Docker-first with multi-arch support (linux/amd64, linux/arm64)
+- **Filtering**: Client-side Top 10/20/50%, Homepage, All with per-day grouping
+- **Performance**: Batch processing (20 stories/batch, 100ms delays)
+- **Port**: 3000 (configurable via PORT env var)
+- **Routing**: Hash-based (`/#top-20`) for shareable URLs
+- **Security**: Helmet middleware with CSP headers
+- **Styling**: Tailwind CSS v4 utility-first, dark mode via `prefers-color-scheme`
+
 ## Project Structure
 - **index.js**: Main server file with routing and caching logic
 - **package.json**: Dependencies and build scripts (alphabetically sorted)
