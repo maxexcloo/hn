@@ -1,10 +1,23 @@
 const express = require('express');
+const helmet = require('helmet');
 const https = require('https');
 
 const app = express();
 const cache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const MAX_CACHE_SIZE = 1000; // Prevent memory leaks
 const port = process.env.PORT || 3000;
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"]
+    }
+  }
+}));
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
@@ -36,20 +49,6 @@ const fetchStory = (id) => {
   });
 };
 
-// Helper function to get story IDs based on type
-const getStoryIds = (type) => {
-  const endpoints = {
-    'top': 'topstories.json',
-    'new': 'newstories.json',
-    'best': 'beststories.json',
-    'ask': 'askstories.json',
-    'show': 'showstories.json',
-    'job': 'jobstories.json'
-  };
-  
-  const endpoint = endpoints[type] || endpoints['top'];
-  return `https://hacker-news.firebaseio.com/v0/${endpoint}`;
-};
 
 
 // Function to fetch stories with better error handling
@@ -121,7 +120,11 @@ const fetchAllStories = async () => {
     
     console.log(`Fetched ${validStories.length} valid stories`);
     
-    // Cache the result
+    // Cache with size limit
+    if (cache.size >= MAX_CACHE_SIZE) {
+      const oldestKey = cache.keys().next().value;
+      cache.delete(oldestKey);
+    }
     cache.set(cacheKey, {
       data: validStories,
       timestamp: Date.now()
@@ -242,6 +245,11 @@ const fetchCommentsForStory = async (storyId) => {
     const comments = (await Promise.all(commentPromises)).filter(c => c !== null);
     
     const result = { story, comments };
+    // Cache with size limit
+    if (cache.size >= MAX_CACHE_SIZE) {
+      const oldestKey = cache.keys().next().value;
+      cache.delete(oldestKey);
+    }
     cache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
     
@@ -257,18 +265,59 @@ const fetchCommentsForStory = async (storyId) => {
   }
 };
 
+// Input validation helper
+const isValidId = (id) => /^\d+$/.test(id) && parseInt(id) > 0;
+
 app.get('/comments/:id', async (req, res) => {
   const storyId = req.params.id;
   
+  // Validate story ID
+  if (!isValidId(storyId)) {
+    return res.status(400).render('error', { 
+      error: 'Invalid story ID',
+      message: 'The requested story could not be found.'
+    });
+  }
+  
   try {
     const { story, comments } = await fetchCommentsForStory(storyId);
+    if (!story) {
+      return res.status(404).render('error', {
+        error: 'Story not found',
+        message: 'The requested story could not be found.'
+      });
+    }
     res.render('comments', { story, comments });
   } catch (error) {
     console.error('Error in comments route:', error);
-    res.status(500).send('Error fetching comments');
+    res.status(500).render('error', {
+      error: 'Server Error',
+      message: 'Unable to load comments. Please try again later.'
+    });
   }
 });
 
+
+// Health check endpoints
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/ready', (req, res) => {
+  res.status(200).json({ 
+    status: 'ready', 
+    cache: { size: cache.size, maxSize: MAX_CACHE_SIZE },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).render('error', {
+    error: 'Page Not Found',
+    message: 'The page you are looking for does not exist.'
+  });
+});
 
 // Cache status endpoint (for debugging)
 app.get('/cache-status', (req, res) => {
@@ -339,7 +388,7 @@ const startCacheRefresh = () => {
   }, CACHE_DURATION); // Refresh every 5 minutes
 };
 
-app.listen(port, async () => {
+const server = app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
   
   // Start periodic cache refresh
@@ -357,4 +406,21 @@ app.listen(port, async () => {
       console.error('Initial cache warming failed (will retry automatically):', error.message);
     }
   }, 1000);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
 });

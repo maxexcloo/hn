@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= error %> | HN</title>
+    <link rel="stylesheet" href="/output.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body class="bg-white dark:bg-black font-verdana text-black text-xs dark:text-gray-200">
+    <div class="max-w-4xl mx-auto p-4">
+      <div class="mb-4">
+        <div class="font-bold mb-2 text-lg">
+          <a class="no-underline text-black dark:text-gray-200" href="/">HN</a>
+        </div>
+      </div>
+      
+      <div class="border-b border-gray-300 dark:border-gray-600 mb-6 pb-3">
+        <div class="font-normal mb-2 text-sm"><%= error %></div>
+        <div class="text-gray-500 text-xs">
+          <%= message %>
+        </div>
+      </div>
+      
+      <p class="text-gray-500 text-xs">
+        <a class="text-blue-600 underline" href="/">← Back to homepage</a>
+      </p>
+    </div>
+  </body>
+</html>
