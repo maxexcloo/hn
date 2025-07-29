@@ -7,16 +7,16 @@
 ## Commands
 ```bash
 # Development
-npm run dev      # Start development
+npm run dev      # Start development with auto-rebuild
 npm test         # No tests configured
-npm run build    # Check code quality via build
+npm run build    # Build CSS and check code quality
 
 # Build
 npm run build    # Build for production
 ```
 
 ## Tech Stack
-- **Language**: JavaScript (Node.js 22)
+- **Language**: JavaScript (Node.js 22+)
 - **Framework**: Express.js with EJS templating
 - **Testing**: No testing framework configured
 
@@ -37,30 +37,38 @@ npm run build    # Build for production
 - **Naming**: camelCase for variables/functions, kebab-case for CSS classes
 - **Trailing newlines**: Required in all files
 
+## Project Structure
+- **index.js**: Main server file with routing and caching logic
+- **package.json**: Dependencies and build scripts (alphabetically sorted)
+- **postcss.config.js**: PostCSS configuration for Tailwind CSS v4
+- **public/**: Static assets (style.css input, output.css generated)
+- **views/**: EJS templates for server-side rendering
+- **views/partials/**: Reusable template components
+
 ## Project Specs
 - **API**: Hacker News Firebase API (`topstories.json`, item endpoints)
 - **Architecture**: Server-side rendering with client-side filtering
 - **Cache**: 5-minute expiry with 1000-item size limit, auto-refresh on startup
-- **Comments**: Collapsible threading with 12px indentation levels
+- **Comments**: Collapsible threading with 12px indentation levels, event delegation
+- **CSP**: Helmet middleware with Content Security Policy (no inline handlers)
 - **Deployment**: Docker-first with multi-arch support (linux/amd64, linux/arm64)
 - **Filtering**: Client-side Top 10/20/50%, Homepage, All with per-day grouping
 - **Performance**: Batch processing (20 stories/batch, 100ms delays)
 - **Port**: 3000 (configurable via PORT env var)
 - **Routing**: Hash-based (`/#top-20`) for shareable URLs
-- **Security**: Helmet middleware with CSP headers
 - **Styling**: Tailwind CSS v4 utility-first, dark mode via `prefers-color-scheme`
 
-## Project Structure
-- **index.js**: Main server file with routing and caching logic
-- **package.json**: Dependencies and build scripts (alphabetically sorted)
-- **public/**: Static assets (style.css input, output.css generated)
-- **views/**: EJS templates for server-side rendering
-- **views/partials/**: Reusable template components
+## README Guidelines
+- **Structure**: Title → Description → Quick Start → Features → Installation → Usage → Contributing
+- **Badges**: Include relevant status badges (build, version, license)
+- **Code examples**: Always include working examples in code blocks
+- **Installation**: Provide copy-paste commands that work
+- **Quick Start**: Get users running in under 5 minutes
 
 ## Git Workflow
 ```bash
 # After every change
-npm run build && npm start && git add . && git commit -m "type: description"
+npm run build && git add . && git commit -m "type: description"
 
 # Always commit after verified working changes
 # Keep commits small and focused

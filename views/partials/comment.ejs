@@ -1,7 +1,7 @@
 <% comments.forEach(comment => { %>
   <% if (comment && comment.by && comment.text) { %>
     <div class="comment mb-2" data-comment-id="<%= comment.id %>" style="margin-left: <%= level * 12 %>px;">
-      <div class="border-l-2 border-gray-200 comment-header cursor-pointer dark:border-hn-border-dark pl-2 py-1" onclick="toggleComment('<%= comment.id %>')">
+      <div class="border-l-2 border-gray-200 comment-header cursor-pointer dark:border-hn-border-dark pl-2">
         <div class="select-none text-gray-500 text-xs">
           <span class="collapse-btn font-mono mr-1">[-]</span>
           <span class="font-medium"><%= comment.by %></span> | <%= new Date(comment.time * 1000).toLocaleString('en-AU') %>

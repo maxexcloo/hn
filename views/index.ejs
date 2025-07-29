@@ -143,7 +143,7 @@
       // Get filter from URL hash or default
       function getFilterFromHash() {
         const hash = window.location.hash.slice(1); // Remove #
-        const validFilters = ['top-10', 'top-20', 'top-50', 'homepage', 'all'];
+        const validFilters = ['all', 'homepage', 'top-10', 'top-20', 'top-50'];
         return validFilters.includes(hash) ? hash : currentFilter;
       }
       
