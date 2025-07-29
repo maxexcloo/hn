@@ -2,10 +2,10 @@ const express = require('express');
 const helmet = require('helmet');
 const https = require('https');
 
-const app = express();
-const cache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 const MAX_CACHE_SIZE = 1000; // Prevent memory leaks
+const app = express();
+const cache = new Map();
 const port = process.env.PORT || 3000;
 
 // Security middleware

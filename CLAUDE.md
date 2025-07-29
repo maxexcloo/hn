@@ -1,55 +1,66 @@
-# HN Frontend Project
+# CLAUDE.md - Development Guide
 
-## Architecture Overview
-Self-hostable Hacker News frontend following KISS principles with server-side rendering and intelligent caching.
+## Project Overview
+**Purpose**: Self-hostable Hacker News frontend with client-side filtering and dark mode  
+**Status**: Active
 
-## Caching Architecture
-- **Comment cache** - Per-story 5-minute expiry
-- **Graceful degradation** - Serves stale cache on API failures
-- **Pre-cache strategy** - Top 20 stories from last 3 days on startup
-- **Story cache** - 5-minute expiry, auto-refresh, error fallback
+## Commands
+```bash
+# Development
+npm run dev      # Start development server with hot reload
+npm run build    # Build CSS with Tailwind
+npm start        # Start production server
 
-## Code Organization
-- **Alphabetical sorting** - Variables, functions, CSS classes, HTML attributes
-- **Clean structure** - No unnecessary abstractions
-- **Minimal dependencies** - Only essential packages
-- **Single trailing newlines** - All source files
+# Docker
+docker-compose up -d  # Run containerized version
+```
 
-## Data Flow
-1. **Client-side filtering** enables instant Top 10/20/50%, Homepage, All switching
-2. **Fetch 1000 stories** from HN API for complete 7-day coverage
-3. **Hash routing** provides shareable URLs (`/#top-20`)
-4. **Pre-caching** loads popular stories for instant access
-5. **Server-side 7-day filter** ensures fresh, relevant content
+## Tech Stack
+- **Language**: JavaScript (Node.js 22)
+- **Framework**: Express.js with EJS templating
+- **Styling**: Tailwind CSS v4
+- **Container**: Docker with multi-arch support
 
-## Deployment
-- **Docker-first** - Primary deployment method
-- **Environment defaults** - No configuration required
-- **GitHub Container Registry** - Automated multi-arch builds
-- **Port 3000** - Standard Node.js convention
+## Code Standards
 
-## Filter Logic (Per Day)
-- **All** - Complete 7-day dataset sorted chronologically
-- **Homepage** - All stories sorted chronologically (newest first)
-- **Story numbering** - Restarts 1-N for each day
-- **Top 10/20** - Highest-scoring N stories per day, time-sorted within day
-- **Top 50%** - Top half of stories per day by score
+### Organization
+- **Config/Data**: Alphabetical and recursive (imports, dependencies, object keys)
+- **Files**: Alphabetical in documentation and directories
+- **Functions**: Group by purpose, alphabetical within groups
+- **Variables**: Alphabetical within scope
 
-## Implementation Stack
-- **Docker** - Multi-platform containerization
-- **EJS templates** - Server-side rendering, no client frameworks
-- **GitHub Actions** - Automated CI/CD pipeline
-- **Hacker News API** - Real-time data from `topstories.json`
-- **Node.js + Express** - Minimal web server (single file)
-- **Tailwind CSS** - Utility-first styling, no custom CSS
+### Quality
+- **Comments**: Minimal - only for complex business logic
+- **Documentation**: Update README.md and docs with every feature change
+- **Formatting**: No custom formatter - rely on consistent style
+- **KISS principle**: Keep it simple - prefer readable code over clever code
+- **Naming**: camelCase for variables/functions, kebab-case for CSS classes
+- **Trailing newlines**: Required in all files
 
-## Performance Features
-- **API-friendly** - Rate limiting and timeout handling
-- **Batch processing** - 20 stories/batch with 100ms delays
-- **Client-side filtering** - Zero latency filter switching
-- **Memory efficiency** - Only caches active content
+## Project Structure
+- **index.js**: Main server file with all routing and caching logic
+- **package.json**: Dependencies and build scripts (alphabetically sorted)
+- **public/**: Static assets (style.css input, output.css generated)
+- **views/**: EJS templates for server-side rendering
+- **views/partials/**: Reusable template components (comment threading)
 
-## Story Types
-- **Comment threads** - Collapsible, 12px indentation levels
-- **External links** - Title → URL, hostname displayed
-- **Text posts** (Ask HN, Show HN) - Title → comments page
+## Git Workflow
+```bash
+# After every change
+npm run build && npm start  # Test locally
+git add . && git commit -m "type: description"
+
+# Always commit after verified working changes
+# Keep commits small and focused
+```
+
+## Architecture Notes
+- **5-minute cache**: Stories and comments cached with auto-refresh
+- **Client-side filtering**: Instant Top 10/20/50%, Homepage, All switching
+- **Hash routing**: Shareable URLs like `/#top-20`
+- **Security**: Helmet middleware with CSP headers
+- **Docker**: Multi-stage build with dev dependency pruning
+
+---
+
+*Simple context for AI assistants working on this open source project.*
