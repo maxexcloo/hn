@@ -34,7 +34,12 @@
       function groupByDay(stories) {
         const groups = {};
         stories.forEach(story => {
-          const date = new Date(story.time * 1000).toDateString();
+          const date = new Date(story.time * 1000).toLocaleDateString('en-AU', { 
+            weekday: 'short', 
+            day: 'numeric', 
+            month: 'short', 
+            year: 'numeric' 
+          });
           if (!groups[date]) groups[date] = [];
           groups[date].push(story);
         });
