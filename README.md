@@ -104,13 +104,6 @@ The application uses the official Hacker News Firebase API:
 6. **Push** to branch: `git push origin feature-name`
 7. **Open** a Pull Request
 
-### Code Style
-
-- Alphabetical ordering for variables, imports, and object keys
-- Minimal comments (only for complex business logic)
-- camelCase for variables/functions, kebab-case for CSS classes
-- All files must end with trailing newlines
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
