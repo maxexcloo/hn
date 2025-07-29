@@ -11,7 +11,7 @@
   "main": "index.js",
   "name": "hn",
   "scripts": {
-    "build": "tailwindcss -i ./public/style.css -o ./public/output.css",
+    "build": "npx tailwindcss -i ./public/style.css -o ./public/output.css",
     "dev": "npm run build && nodemon index.js",
     "start": "node index.js"
   },
