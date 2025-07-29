@@ -52,7 +52,7 @@ npm run build    # Build for production
 - **Comments**: Collapsible threading with 12px indentation levels, event delegation
 - **CSP**: Helmet middleware with Content Security Policy (no inline handlers)
 - **Deployment**: Docker-first with multi-arch support (linux/amd64, linux/arm64)
-- **Filtering**: Client-side Top 10/20/50%, Homepage, All with per-day grouping
+- **Filtering**: Client-side Top 10/20/50%, All with per-day grouping
 - **Performance**: Batch processing (20 stories/batch, 100ms delays)
 - **Port**: 3000 (configurable via PORT env var)
 - **Routing**: Hash-based (`/#top-20`) for shareable URLs

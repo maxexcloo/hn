@@ -15,7 +15,6 @@
         <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="top-10">Top 10</button>
         <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="top-20">Top 20</button>
         <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="top-50">Top 50%</button>
-        <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="homepage">Homepage</button>
         <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="all">All</button>
       </div>
       
@@ -81,10 +80,6 @@
                 .slice(0, fiftyPercent)
                 .sort((a, b) => b.time - a.time);
               break;
-            case 'homepage':
-              // Homepage shows stories sorted by time (newest first)
-              filteredDayStories = dayStories.sort((a, b) => b.time - a.time);
-              break;
             case 'all':
             default:
               filteredDayStories = dayStories.sort((a, b) => b.time - a.time);
@@ -143,7 +138,7 @@
       // Get filter from URL hash or default
       function getFilterFromHash() {
         const hash = window.location.hash.slice(1); // Remove #
-        const validFilters = ['all', 'homepage', 'top-10', 'top-20', 'top-50'];
+        const validFilters = ['all', 'top-10', 'top-20', 'top-50'];
         return validFilters.includes(hash) ? hash : currentFilter;
       }
       

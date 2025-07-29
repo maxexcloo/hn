@@ -11,7 +11,7 @@ Self-hostable Hacker News frontend with client-side filtering and dark mode supp
 Get up and running in under 5 minutes:
 
 ```bash
-git clone https://github.com/your-username/hn.git
+git clone https://github.com/maxexcloo/hn.git
 cd hn
 npm install
 npm run build
@@ -29,7 +29,7 @@ Visit `http://localhost:3000` and start browsing filtered Hacker News stories.
 - **Intelligent caching** - 5-minute cache with 1000-item limit and pre-loading
 - **Security focused** - Helmet middleware with CSP headers
 - **Server-side rendered** - Fast loading with Express.js and EJS
-- **Smart filtering** - Top 10/20/50%, Homepage, All with per-day grouping
+- **Smart filtering** - Top 10/20/50%, All with per-day grouping
 - **Tailwind CSS v4** - Modern utility-first styling
 
 ## Installation
@@ -38,7 +38,7 @@ Visit `http://localhost:3000` and start browsing filtered Hacker News stories.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/hn.git
+git clone https://github.com/maxexcloo/hn.git
 cd hn
 
 # Install dependencies
@@ -79,7 +79,6 @@ npm run build
 - **Top 10** - Best 10 stories per day by score
 - **Top 20** - Best 20 stories per day by score  
 - **Top 50%** - Top half of stories per day by score
-- **Homepage** - All stories sorted by time (newest first)
 - **All** - Complete story list sorted by time
 
 ### Comment Navigation
