@@ -74,24 +74,18 @@ npm run dev
 npm run build
 ```
 
+### Environment Variables
+
+```bash
+PORT=3000  # Server port (default: 3000)
+```
+
 ### Filtering Options
 
 - **Top 10** - Best 10 stories per day by score
 - **Top 20** - Best 20 stories per day by score  
 - **Top 50%** - Top half of stories per day by score
 - **All** - Complete story list sorted by time
-
-### Comment Navigation
-
-- Click comment headers to collapse/expand threads
-- 12px indentation levels for nested replies
-- Maintains state during browsing session
-
-### Environment Variables
-
-```bash
-PORT=3000  # Server port (default: 3000)
-```
 
 ## API
 
