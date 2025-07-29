@@ -1,8 +1,9 @@
 # HN
 
-[![Node.js](https://img.shields.io/badge/node.js-22+-green.svg)](https://nodejs.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-active-success)](https://img.shields.io/badge/status-active-success)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
+[![Node.js](https://img.shields.io/badge/node.js-22+-green.svg)](https://nodejs.org/)
 
 Self-hostable Hacker News frontend with client-side filtering and dark mode support.
 
@@ -80,20 +81,6 @@ npm run build
 PORT=3000  # Server port (default: 3000)
 ```
 
-### Filtering Options
-
-- **Top 10** - Best 10 stories per day by score
-- **Top 20** - Best 20 stories per day by score  
-- **Top 50%** - Top half of stories per day by score
-- **All** - Complete story list sorted by time
-
-## API
-
-The application uses the official Hacker News Firebase API:
-
-- **Stories**: `https://hacker-news.firebaseio.com/v0/topstories.json`
-- **Items**: `https://hacker-news.firebaseio.com/v0/item/{id}.json`
-
 ## Contributing
 
 1. **Fork** the repository
@@ -106,4 +93,4 @@ The application uses the official Hacker News Firebase API:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU AGPLv3 License - see the [LICENSE](LICENSE) file for details.
