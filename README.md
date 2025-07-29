@@ -1,9 +1,9 @@
 # HN
 
-[![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active-success)](https://img.shields.io/badge/status-active-success)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
-[![Node.js](https://img.shields.io/badge/node.js-22+-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node.js-green.svg)](https://nodejs.org/)
 
 Self-hostable Hacker News frontend with client-side filtering and dark mode support.
 
