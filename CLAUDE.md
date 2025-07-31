@@ -37,13 +37,14 @@ npm test         # No tests configured
 ## Development Guidelines
 
 ### Documentation Structure
+- **ARCHITECTURE.md**: Technical design and implementation details
 - **CLAUDE.md**: Development standards and project guidelines (this file)
 - **README.md**: Tool overview and usage guide
 
 ### Contribution Standards
 - **Code Changes**: Follow sorting rules and maintain project standards
 - **Documentation**: Keep all docs synchronized and cross-referenced
-- **Feature Changes**: Update README.md when adding features
+- **Feature Changes**: Update README.md and ARCHITECTURE.md when adding features
 
 ## Development Workflow Standards
 
