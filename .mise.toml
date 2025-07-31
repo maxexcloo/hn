@@ -1,0 +1,22 @@
+[tools]
+node = "22"
+
+[tasks.build]
+description = "Build CSS and check code"
+run = "npm run build"
+
+[tasks.check]
+description = "Run all checks (build)"
+depends = ["build"]
+
+[tasks.dev]
+description = "Start development server with auto-rebuild"
+run = "npm run dev"
+
+[tasks.fmt]
+description = "Format code (no formatter configured)"
+run = "echo 'No formatter configured'"
+
+[tasks.test]
+description = "Run tests (no tests configured)"
+run = "echo 'No tests configured'"

@@ -9,11 +9,7 @@ Self-hostable Hacker News frontend with client-side filtering and dark mode supp
 
 ## Quick Start
 
-Get up and running in under 5 minutes:
-
 ```bash
-git clone https://github.com/maxexcloo/hn.git
-cd hn
 npm install
 npm run build
 npm start
@@ -38,10 +34,6 @@ Visit `http://localhost:3000` and start browsing filtered Hacker News stories.
 ### Node.js (Recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/maxexcloo/hn.git
-cd hn
-
 # Install dependencies
 npm install
 
@@ -83,13 +75,11 @@ PORT=3000  # Server port (default: 3000)
 
 ## Contributing
 
-1. **Build** and test: `npm run build`
-2. **Commit** changes: `git commit -m "feat: description"`
-3. **Create** a feature branch: `git checkout -b feature-name`
-4. **Follow** the code standards in `CLAUDE.md`
-5. **Fork** the repository
-6. **Open** a Pull Request
-7. **Push** to branch: `git push origin feature-name`
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make changes following the code standards in CLAUDE.md
+4. Build and test: `npm run build`
+5. Submit a pull request
 
 ## License
 

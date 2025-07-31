@@ -8,8 +8,8 @@
 ## Code Standards
 
 ### Organization
-- **Config/Data**: Alphabetical and recursive (imports, dependencies, object keys)
-- **Documentation**: Sort alphabetically and recursively when it makes logical sense
+- **Config/Data**: Alphabetical and recursive (imports, dependencies, object keys, mise tasks)
+- **Documentation**: Sort sections, lists, and references alphabetically when logical
 - **Files**: Alphabetical in documentation and directories
 - **Functions**: Group by purpose, alphabetical within groups
 - **Variables**: Alphabetical within scope
@@ -18,7 +18,7 @@
 - **Comments**: Minimal - only for complex business logic
 - **Documentation**: Update ARCHITECTURE.md and README.md with every feature change
 - **Error handling**: Always handle API errors gracefully
-- **Formatting**: Run formatter before commits
+- **Formatting**: Run `mise run fmt` before commits
 - **KISS principle**: Keep it simple - prefer readable code over clever code
 - **Naming**: camelCase for variables/functions, kebab-case for CSS classes
 - **Testing**: No testing framework configured
@@ -27,30 +27,29 @@
 ## Commands
 ```bash
 # Build
-npm run build    # Build CSS and check code quality
+mise run build           # Build CSS and check code
 
 # Development
-npm run dev      # Start development with auto-rebuild
-npm test         # No tests configured
+mise run dev             # Start development server with auto-rebuild
+
+# Format
+mise run fmt             # Code formatting (no formatter configured)
+
+# Check
+mise run check           # All validation (build)
 ```
 
 ## Development Guidelines
-
-### Documentation Structure
-- **ARCHITECTURE.md**: Technical design and implementation details
-- **CLAUDE.md**: Development standards and project guidelines
-- **README.md**: Tool overview and usage guide
 
 ### Contribution Standards
 - **Code Changes**: Follow sorting rules and maintain project standards
 - **Documentation**: Keep all docs synchronized and cross-referenced
 - **Feature Changes**: Update README.md and ARCHITECTURE.md when adding features
 
-## Development Workflow Standards
-
-### Required Development Tasks
-- **build**: Build CSS and check code quality
-- **dev**: Development with auto-rebuild
+### Documentation Structure
+- **ARCHITECTURE.md**: Technical design and implementation details
+- **CLAUDE.md**: Development standards and project guidelines
+- **README.md**: Tool overview and usage guide
 
 ## Error Handling Standards
 - **Contextual errors**: Show meaningful error messages
@@ -73,19 +72,24 @@ npm test         # No tests configured
 - **Quick Start**: Get users running in under 5 minutes
 - **Structure**: Title → Badges → Description → Quick Start → Features → Installation → Usage → Contributing
 
+## Development Workflow Standards
+
+### Environment Management
+- Use **mise** for consistent development environments
+- Define common tasks as mise scripts
+- Pin tool versions in `.mise.toml`
+
+### Required Development Tasks
+- **build**: Build CSS and check code
+- **check**: All validation (build)
+- **dev**: Start development server with auto-rebuild
+- **fmt**: Code formatting (no formatter configured)
+- **test**: No testing framework configured
+
 ## Tech Stack
 - **Backend**: Express.js with EJS templating
 - **Frontend**: JavaScript (Node.js 22+)
 - **Testing**: No testing framework configured
-
-## Git Workflow
-```bash
-# After every change
-npm run build && git add . && git commit -m "type: description"
-
-# Always commit after verified working changes
-# Keep commits small and focused
-```
 
 ---
 
