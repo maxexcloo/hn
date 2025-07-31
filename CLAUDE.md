@@ -1,7 +1,7 @@
 # CLAUDE.md - Development Guide
 
 ## Project Overview
-**Purpose**: Self-hostable Hacker News frontend with client-side filtering and dark mode  
+**Purpose**: Self-hostable Hacker News frontend with client-side filtering and dark mode
 **Status**: Active
 **Language**: JavaScript (Node.js 22+)
 
