@@ -83,13 +83,13 @@ PORT=3000  # Server port (default: 3000)
 
 ## Contributing
 
-1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feature-name`
-3. **Follow** the code standards in `CLAUDE.md`
-4. **Build** and test: `npm run build`
-5. **Commit** changes: `git commit -m "feat: description"`
-6. **Push** to branch: `git push origin feature-name`
-7. **Open** a Pull Request
+1. **Build** and test: `npm run build`
+2. **Commit** changes: `git commit -m "feat: description"`
+3. **Create** a feature branch: `git checkout -b feature-name`
+4. **Follow** the code standards in `CLAUDE.md`
+5. **Fork** the repository
+6. **Open** a Pull Request
+7. **Push** to branch: `git push origin feature-name`
 
 ## License
 
