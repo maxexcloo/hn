@@ -1,4 +1,4 @@
-# CLAUDE.md - Development Guide
+# AGENTS.md - Development Guide
 
 ## Project Overview
 **Purpose**: Self-hostable Hacker News frontend with client-side filtering and dark mode
