@@ -10,13 +10,12 @@
   --font-verdana: Verdana, Geneva, sans-serif;
 }
 
-/* Comment collapsing functionality */
-.comment.collapsed .comment-content {
+.comment.collapsed > .comment-content {
   display: none;
 }
 
-.comment.collapsed .comment-children {
-  display: none;
+.comment-children {
+  margin-left: 12px;
 }
 
 .comment-text p {

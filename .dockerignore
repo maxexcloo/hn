@@ -1,0 +1,11 @@
+.claude
+.git
+.github
+.mise.toml
+AGENTS.md
+ARCHITECTURE.md
+README.md
+docker-compose.yml
+node_modules
+public/output.css
+test

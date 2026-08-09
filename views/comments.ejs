@@ -1,55 +1,34 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en-AU">
   <head>
-    <link rel="stylesheet" href="/output.css">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/output.css">
+    <script defer src="/comments.js"></script>
     <title><%= story.title %> | HN</title>
   </head>
   <body class="bg-hn-bg dark:bg-hn-bg-dark font-verdana text-black text-xs dark:text-hn-text-dark">
-    <div class="max-w-4xl mx-auto p-4">
-      <div class="mb-4">
-        <div class="font-bold mb-2 text-lg">
-          <a class="no-underline text-hn-orange" href="/">HN</a>
-        </div>
+    <main class="max-w-4xl mx-auto p-4">
+      <div class="font-bold mb-4 text-lg">
+        <a class="no-underline text-hn-orange" href="/">HN</a>
       </div>
-      
-      <div class="border-b border-gray-300 dark:border-hn-border-dark mb-6 pb-3">
-        <div class="font-normal mb-2 text-sm"><%= story.title %></div>
+
+      <header class="border-b border-gray-300 dark:border-hn-border-dark mb-6 pb-3">
+        <h1 class="font-normal mb-2 text-sm"><%= story.title %></h1>
         <div class="text-gray-500 text-xs">
-          <%= story.score %> points by <%= story.by %> | 
+          <%= story.score %> points by <%= story.by %> |
           <%= story.descendants || 0 %> comments
-          <% if (story.url) { %>
-            | <a class="text-gray-500 underline" href="<%= story.url %>">link</a>
+          <% if (storyUrl) { %>
+            | <a class="text-gray-500 underline" href="<%= storyUrl %>" rel="nofollow noreferrer">link</a>
           <% } %>
         </div>
-      </div>
-      
+      </header>
+
       <% if (comments.length === 0) { %>
         <p class="italic text-gray-500 text-xs">No comments yet.</p>
       <% } else { %>
-        <%- include('partials/comment', { comments: comments, level: 0 }) %>
+        <%- include('partials/comment', { comments, level: 0 }) %>
       <% } %>
-    </div>
-    
-    <script>
-      // Comment collapsing functionality with event delegation
-      document.addEventListener('DOMContentLoaded', function() {
-        document.addEventListener('click', function(e) {
-          const commentHeader = e.target.closest('.comment-header');
-          if (commentHeader) {
-            const comment = commentHeader.closest('.comment');
-            const collapseBtn = comment.querySelector('.collapse-btn');
-            
-            if (comment.classList.contains('collapsed')) {
-              comment.classList.remove('collapsed');
-              collapseBtn.textContent = '[-]';
-            } else {
-              comment.classList.add('collapsed');
-              collapseBtn.textContent = '[+]';
-            }
-          }
-        });
-      });
-    </script>
+    </main>
   </body>
 </html>

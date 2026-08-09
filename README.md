@@ -1,41 +1,56 @@
 # HN
 
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-active-success)](https://img.shields.io/badge/status-active-success)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
-[![Node.js](https://img.shields.io/badge/node.js-green.svg)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node.js-22.12%2B-green.svg)](https://nodejs.org/)
+[![Status](https://img.shields.io/badge/status-active-success)](https://img.shields.io/badge/status-active-success)
 
-Self-hostable Hacker News frontend with client-side filtering and dark mode support.
+Self-hostable Hacker News frontend with secure server-side rendering, client-side filtering, and automatic dark mode.
 
 ## Quick Start
 
 ```bash
-npm install
+npm ci
 npm run build
 npm start
 ```
 
-Visit `http://localhost:3000` and start browsing filtered Hacker News stories.
+Visit `http://localhost:3000` to browse filtered Hacker News stories.
 
 ## Features
 
-- **Collapsible comments** - Click to expand/collapse comment threads
-- **Dark mode** - Automatic via `prefers-color-scheme`
-- **Docker ready** - Multi-platform containers (linux/amd64, linux/arm64)
-- **Hash routing** - Shareable URLs like `/#top-20`
-- **Intelligent caching** - 5-minute cache with 1000-item limit and pre-loading
-- **Security focused** - Helmet middleware with CSP headers
-- **Server-side rendered** - Fast loading with Express.js and EJS
-- **Smart filtering** - Top 10/20/50%, All with per-day grouping
-- **Tailwind CSS v4** - Modern utility-first styling
+- **Accessible comments** — Collapse and expand comment threads with pointer or keyboard controls
+- **Bounded API access** — Shared concurrency, depth, response-size, and timeout limits
+- **Dark mode** — Automatic via `prefers-color-scheme`
+- **Docker ready** — Health-checked multi-platform containers for linux/amd64 and linux/arm64
+- **Graceful degradation** — Stale-cache fallback and informative upstream error pages
+- **Hash routing** — Shareable URLs such as `/#top-20`
+- **Intelligent caching** — Five-minute, 100-entry LRU cache with request coalescing
+- **Secure rendering** — Allow-list comment sanitisation and a strict Content Security Policy
+- **Smart filtering** — Per-day Top 10, Top 20, Top 50%, and All filters
+- **Supply-chain metadata** — Multi-architecture images with provenance and an SBOM
+- **Tailwind CSS v4** — Utility-first styling
 
 ## Installation
 
-### Node.js (Recommended)
+### Docker
 
 ```bash
-# Install dependencies
-npm install
+# Use the published image
+docker compose up -d
+
+# Or build and run locally
+docker build -t hn .
+docker run --publish 3000:3000 hn
+```
+
+### Node.js
+
+Node.js 22.12 or newer is required. The repository pins Node.js 22.23.2 through Mise.
+
+```bash
+# Install dependencies exactly as locked
+npm ci
 
 # Build CSS
 npm run build
@@ -44,43 +59,43 @@ npm run build
 npm start
 ```
 
-### Docker
-
-```bash
-# Using Docker Compose
-docker-compose up -d
-
-# Or build and run manually
-docker build -t hn .
-docker run -p 3000:3000 hn
-```
-
 ## Usage
 
 ### Development
 
 ```bash
-# Start development server with auto-rebuild
+# Start the development server with automatic restart
 npm run dev
 
-# Build CSS only
-npm run build
+# Run the complete validation suite
+npm run check
+
+# Run tests only
+npm test
 ```
+
+Equivalent Mise tasks are available through `mise run build`, `mise run check`, `mise run dev`, `mise run fmt`, `mise run lint`, `mise run setup`, and `mise run test`.
 
 ### Environment Variables
 
 ```bash
-PORT=3000  # Server port (default: 3000)
+PORT=3000  # Server port; defaults to 3000
 ```
+
+### Operational Endpoints
+
+- `/cache-status` — LRU cache entries and ages
+- `/health` — Process liveness
+- `/ready` — Story-data readiness and degraded-state information
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make changes following the code standards in CLAUDE.md
-4. Build and test: `npm run build`
-5. Submit a pull request
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature-name`.
+3. Follow the standards in [AGENTS.md](AGENTS.md).
+4. Run `mise run fmt` and `mise run check`.
+5. Submit a pull request.
 
 ## License
 
-This project is licensed under the AGPL-3.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under AGPL-3.0. See [LICENSE](LICENSE) for details.

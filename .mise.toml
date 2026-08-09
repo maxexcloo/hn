@@ -1,22 +1,36 @@
 [tools]
-node = "22"
+actionlint = "1.7.12"
+hadolint = "2.15.1"
+node = "22.23.2"
 
 [tasks.build]
-description = "Build CSS and check code"
+description = "Build CSS"
 run = "npm run build"
 
 [tasks.check]
-description = "Run all checks (build)"
-depends = ["build"]
+description = "Run all repository checks"
+run = """
+actionlint .github/workflows/*.yaml
+hadolint --failure-threshold error Dockerfile
+npm run check
+"""
 
 [tasks.dev]
 description = "Start development server with auto-rebuild"
 run = "npm run dev"
 
 [tasks.fmt]
-description = "Format code (no formatter configured)"
-run = "echo 'No formatter configured'"
+description = "Format project files"
+run = "npm run fmt"
+
+[tasks.lint]
+description = "Check JavaScript syntax"
+run = "npm run lint"
+
+[tasks.setup]
+description = "Install locked dependencies"
+run = "npm ci"
 
 [tasks.test]
-description = "Run tests (no tests configured)"
-run = "echo 'No tests configured'"
+description = "Run tests"
+run = "npm test"

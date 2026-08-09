@@ -1,426 +1,511 @@
-const express = require('express');
-const helmet = require('helmet');
-const https = require('https');
+const express = require("express");
+const helmet = require("helmet");
+const path = require("path");
+const sanitizeHtml = require("sanitize-html");
 
-const app = express();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-const cache = new Map();
-const MAX_CACHE_SIZE = 1000; // Prevent memory leaks
-const port = process.env.PORT || 3000;
+const API_BASE_URL = "https://hacker-news.firebaseio.com/v0/";
+const API_CONCURRENCY = 20;
+const API_RESPONSE_LIMIT = 1024 * 1024;
+const API_TIMEOUT = 10 * 1000;
+const CACHE_DURATION = 5 * 60 * 1000;
+const COMMENT_DEPTH_LIMIT = 20;
+const COMMENT_LIMIT = 500;
+const MAX_CACHE_SIZE = 100;
+const MAX_COMMENT_REQUESTS = 5;
+const MAX_STORY_IDS = 500;
+const VALID_FILTERS = new Set(["all", "top-10", "top-20", "top-50"]);
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"]
+class NotFoundError extends Error {}
+
+const createLimiter = (concurrency) => {
+  const queue = [];
+  let activeCount = 0;
+
+  const runNext = () => {
+    if (activeCount >= concurrency || queue.length === 0) {
+      return;
     }
-  }
-}));
 
-app.set('view engine', 'ejs');
-app.use(express.static('public'));
+    activeCount += 1;
+    const { reject, resolve, task } = queue.shift();
 
-// Helper function to fetch story data with timeout and error handling
-const fetchStory = (id) => {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(`Timeout fetching story ${id}`));
-    }, 5000); // 5 second timeout per story
-    
-    https.get(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, (itemRes) => {
-      clearTimeout(timeout);
-      let itemData = '';
-      itemRes.on('data', (chunk) => {
-        itemData += chunk;
+    Promise.resolve()
+      .then(task)
+      .then(resolve, reject)
+      .finally(() => {
+        activeCount -= 1;
+        runNext();
       });
-      itemRes.on('end', () => {
-        try {
-          resolve(JSON.parse(itemData));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    }).on('error', (err) => {
-      clearTimeout(timeout);
-      reject(err);
+  };
+
+  return (task) =>
+    new Promise((resolve, reject) => {
+      queue.push({ reject, resolve, task });
+      runNext();
     });
-  });
 };
 
+const createStoryService = ({
+  apiBaseUrl = API_BASE_URL,
+  fetchImpl = globalThis.fetch,
+  logger = console,
+  now = Date.now,
+} = {}) => {
+  const cache = new Map();
+  const commentRequests = new Map();
+  const limitRequest = createLimiter(API_CONCURRENCY);
+  let lastStoryError = null;
+  let lastStorySuccessAt = null;
+  let storiesRequest = null;
 
-
-// Function to fetch stories with better error handling
-const fetchAllStories = async () => {
-  const cacheKey = 'all-stories';
-  const cached = cache.get(cacheKey);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    console.log('Cache hit for all stories');
-    return cached.data;
-  }
-  
-  console.log('Fetching fresh stories data');
-  
-  try {
-    // Fetch from topstories to get vote-ranked stories
-    const storyIds = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Request timeout'));
-      }, 10000); // 10 second timeout
-      
-      https.get('https://hacker-news.firebaseio.com/v0/topstories.json', (apiRes) => {
-        clearTimeout(timeout);
-        let data = '';
-        apiRes.on('data', (chunk) => {
-          data += chunk;
-        });
-        apiRes.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (error) {
-            reject(error);
-          }
-        });
-      }).on('error', (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
-    });
-    
-    // Take many more stories to ensure we have enough for complete days
-    const topStoryIds = storyIds.slice(0, 1000);
-    
-    // Fetch stories in smaller batches to avoid overwhelming the API
-    const batchSize = 20;
-    const stories = [];
-    
-    for (let i = 0; i < topStoryIds.length; i += batchSize) {
-      const batch = topStoryIds.slice(i, i + batchSize);
-      const batchPromises = batch.map(id => 
-        fetchStory(id).catch(err => {
-          console.warn(`Failed to fetch story ${id}:`, err.message);
-          return null;
-        })
-      );
-      
-      const batchResults = await Promise.all(batchPromises);
-      stories.push(...batchResults);
-      
-      // Small delay between batches to be nice to the API
-      if (i + batchSize < topStoryIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    
-    // Filter out null/undefined stories
-    const validStories = stories
-      .filter(story => story && story.title);
-    
-    console.log(`Fetched ${validStories.length} valid stories`);
-    
-    // Cache with size limit
-    if (cache.size >= MAX_CACHE_SIZE) {
-      const oldestKey = cache.keys().next().value;
+  const deleteOldestCacheEntry = () => {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
       cache.delete(oldestKey);
     }
-    cache.set(cacheKey, {
-      data: validStories,
-      timestamp: Date.now()
-    });
-    
-    return validStories;
-    
-  } catch (error) {
-    console.error('Error fetching stories:', error);
-    
-    // Return cached data if available, even if expired
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      console.log('Returning stale cached data due to error');
-      return cached.data;
+  };
+
+  const getCached = (key, { allowExpired = false } = {}) => {
+    const cached = cache.get(key);
+    if (!cached) {
+      return null;
     }
-    
-    // Return empty array as fallback
-    return [];
-  }
-};
 
-app.get('/', async (req, res) => {
-  try {
-    const allStories = await fetchAllStories();
-    
-    // Filter to last 7 days but ensure we have enough stories
-    const sevenDaysAgo = Date.now() / 1000 - (7 * 24 * 60 * 60);
-    const recentStories = allStories.filter(story => story.time > sevenDaysAgo);
-    
-    console.log(`Serving ${recentStories.length} stories from last 7 days`);
-    
-    res.render('index', { 
-      allStories: JSON.stringify(recentStories),
-      currentFilter: req.query.filter || 'top-20'
-    });
-  } catch (error) {
-    console.error('Error in route handler:', error);
-    res.render('index', { 
-      allStories: JSON.stringify([]),
-      currentFilter: req.query.filter || 'top-20'
-    });
-  }
-});
+    const expired = now() - cached.timestamp >= CACHE_DURATION;
+    if (expired && !allowExpired) {
+      return null;
+    }
 
-// Fetch comments with caching
-const fetchCommentsForStory = async (storyId) => {
-  const cacheKey = `comments-${storyId}`;
-  const cached = cache.get(cacheKey);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    console.log(`Cache hit for comments ${storyId}`);
+    cache.delete(key);
+    cache.set(key, cached);
     return cached.data;
-  }
-  
-  console.log(`Fetching fresh comments for story ${storyId}`);
-  
-  try {
-    // Fetch story data
-    const story = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
-      
-      https.get(`https://hacker-news.firebaseio.com/v0/item/${storyId}.json`, (apiRes) => {
-        clearTimeout(timeout);
-        let data = '';
-        apiRes.on('data', (chunk) => data += chunk);
-        apiRes.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (error) {
-            reject(error);
-          }
+  };
+
+  const setCached = (key, data) => {
+    cache.delete(key);
+    while (cache.size >= MAX_CACHE_SIZE) {
+      deleteOldestCacheEntry();
+    }
+    cache.set(key, { data, timestamp: now() });
+  };
+
+  const fetchJson = async (pathname) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT);
+    const url = new URL(pathname, apiBaseUrl);
+
+    try {
+      const response = await fetchImpl(url, {
+        headers: { accept: "application/json" },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `HN API returned HTTP ${response.status} for ${pathname}`,
+        );
+      }
+
+      const contentLength = Number(response.headers.get("content-length"));
+      if (contentLength > API_RESPONSE_LIMIT) {
+        throw new Error(`HN API response exceeded ${API_RESPONSE_LIMIT} bytes`);
+      }
+
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of response.body) {
+        const buffer = Buffer.from(chunk);
+        size += buffer.length;
+        if (size > API_RESPONSE_LIMIT) {
+          controller.abort();
+          throw new Error(
+            `HN API response exceeded ${API_RESPONSE_LIMIT} bytes`,
+          );
+        }
+        chunks.push(buffer);
+      }
+
+      return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch (error) {
+      if (error.name === "AbortError") {
+        throw new Error(`HN API request timed out for ${pathname}`, {
+          cause: error,
         });
-      }).on('error', reject);
-    });
-    
-    if (!story.kids || story.kids.length === 0) {
-      const result = { story, comments: [] };
-      cache.set(cacheKey, { data: result, timestamp: Date.now() });
-      return result;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const fetchItem = (id) => limitRequest(() => fetchJson(`item/${id}.json`));
+
+  const sanitiseComment = (comment) => ({
+    ...comment,
+    text: sanitizeHtml(comment.text || "", {
+      allowedAttributes: { a: ["href", "rel"] },
+      allowedSchemes: ["http", "https"],
+      allowedTags: ["a", "code", "i", "p", "pre"],
+      transformTags: {
+        a: sanitizeHtml.simpleTransform(
+          "a",
+          { rel: "nofollow noreferrer" },
+          true,
+        ),
+      },
+    }),
+  });
+
+  const fetchCommentsUncached = async (storyId) => {
+    const story = await fetchItem(storyId);
+    if (!story || story.type !== "story" || !story.title) {
+      throw new NotFoundError("Story not found");
     }
 
-    // Fetch comments recursively
-    const fetchCommentRecursively = async (commentId) => {
+    const visited = new Set();
+    let remainingComments = COMMENT_LIMIT;
+
+    const fetchComment = async (commentId, depth) => {
+      if (
+        depth > COMMENT_DEPTH_LIMIT ||
+        remainingComments <= 0 ||
+        visited.has(commentId)
+      ) {
+        return null;
+      }
+
+      remainingComments -= 1;
+      visited.add(commentId);
+
       try {
-        const comment = await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Timeout')), 5000);
-          
-          https.get(`https://hacker-news.firebaseio.com/v0/item/${commentId}.json`, (itemRes) => {
-            clearTimeout(timeout);
-            let itemData = '';
-            itemRes.on('data', (chunk) => itemData += chunk);
-            itemRes.on('end', () => {
-              try {
-                resolve(JSON.parse(itemData));
-              } catch (error) {
-                reject(error);
-              }
-            });
-          }).on('error', reject);
-        });
-        
-        if (comment && comment.kids && comment.kids.length > 0) {
-          const childPromises = comment.kids.map(fetchCommentRecursively);
-          comment.children = await Promise.all(childPromises);
-        } else {
-          comment.children = [];
+        const comment = await fetchItem(commentId);
+        if (!comment || comment.type !== "comment") {
+          return null;
         }
-        
-        return comment;
+
+        const children = await Promise.all(
+          (comment.kids || []).map((id) => fetchComment(id, depth + 1)),
+        );
+
+        return {
+          ...sanitiseComment(comment),
+          children: children.filter(Boolean),
+        };
       } catch (error) {
-        console.warn(`Failed to fetch comment ${commentId}:`, error.message);
+        logger.warn(`Failed to fetch comment ${commentId}: ${error.message}`);
         return null;
       }
     };
 
-    const commentPromises = story.kids.map(fetchCommentRecursively);
-    const comments = (await Promise.all(commentPromises)).filter(c => c !== null);
-    
-    const result = { story, comments };
-    // Cache with size limit
-    if (cache.size >= MAX_CACHE_SIZE) {
-      const oldestKey = cache.keys().next().value;
-      cache.delete(oldestKey);
-    }
-    cache.set(cacheKey, { data: result, timestamp: Date.now() });
-    return result;
-    
-  } catch (error) {
-    console.error(`Error fetching comments for story ${storyId}:`, error);
-    // Return cached data if available
-    const cached = cache.get(cacheKey);
+    const comments = await Promise.all(
+      (story.kids || []).map((id) => fetchComment(id, 0)),
+    );
+
+    return { comments: comments.filter(Boolean), story };
+  };
+
+  const fetchComments = async (storyId) => {
+    const cacheKey = `comments-${storyId}`;
+    const cached = getCached(cacheKey);
     if (cached) {
-      console.log('Returning stale cached comments due to error');
-      return cached.data;
+      return cached;
     }
-    throw error;
-  }
-};
 
-// Input validation helper
-const isValidId = (id) => /^\d+$/.test(id) && parseInt(id) > 0;
+    if (commentRequests.has(storyId)) {
+      return commentRequests.get(storyId);
+    }
 
-app.get('/comments/:id', async (req, res) => {
-  const storyId = req.params.id;
-  
-  // Validate story ID
-  if (!isValidId(storyId)) {
-    return res.status(400).render('error', { 
-      error: 'Invalid story ID',
-      message: 'The requested story could not be found.'
-    });
-  }
-  
-  try {
-    const { story, comments } = await fetchCommentsForStory(storyId);
-    if (!story) {
-      return res.status(404).render('error', {
-        error: 'Story not found',
-        message: 'The requested story could not be found.'
+    if (commentRequests.size >= MAX_COMMENT_REQUESTS) {
+      throw new Error("Too many comment requests are in progress");
+    }
+
+    const request = fetchCommentsUncached(storyId)
+      .then((result) => {
+        setCached(cacheKey, result);
+        return result;
+      })
+      .catch((error) => {
+        const stale = getCached(cacheKey, { allowExpired: true });
+        if (stale) {
+          logger.warn(
+            `Returning stale comments for ${storyId}: ${error.message}`,
+          );
+          return stale;
+        }
+        throw error;
+      })
+      .finally(() => commentRequests.delete(storyId));
+
+    commentRequests.set(storyId, request);
+    return request;
+  };
+
+  const fetchStoriesUncached = async () => {
+    const storyIds = await limitRequest(() => fetchJson("topstories.json"));
+    if (!Array.isArray(storyIds)) {
+      throw new Error("HN API returned an invalid story list");
+    }
+
+    const stories = await Promise.all(
+      storyIds
+        .filter((id) => Number.isSafeInteger(id) && id > 0)
+        .slice(0, MAX_STORY_IDS)
+        .map((id) =>
+          fetchItem(id).catch((error) => {
+            logger.warn(`Failed to fetch story ${id}: ${error.message}`);
+            return null;
+          }),
+        ),
+    );
+
+    const validStories = stories.filter(
+      (story) => story && story.type === "story" && story.title,
+    );
+    if (validStories.length === 0) {
+      throw new Error("HN API returned no valid stories");
+    }
+
+    return validStories;
+  };
+
+  const fetchStories = async ({ force = false } = {}) => {
+    const cached = force ? null : getCached("all-stories");
+    if (cached) {
+      return cached;
+    }
+
+    if (storiesRequest) {
+      return storiesRequest;
+    }
+
+    storiesRequest = fetchStoriesUncached()
+      .then((stories) => {
+        lastStoryError = null;
+        lastStorySuccessAt = now();
+        setCached("all-stories", stories);
+        return stories;
+      })
+      .catch((error) => {
+        lastStoryError = error.message;
+        const stale = getCached("all-stories", { allowExpired: true });
+        if (stale) {
+          logger.warn(`Returning stale stories: ${error.message}`);
+          return stale;
+        }
+        throw error;
+      })
+      .finally(() => {
+        storiesRequest = null;
+      });
+
+    return storiesRequest;
+  };
+
+  const getStatus = () => {
+    const entries = [];
+    for (const [key, value] of cache.entries()) {
+      const age = now() - value.timestamp;
+      entries.push({
+        ageSeconds: Math.round(age / 1000),
+        expired: age >= CACHE_DURATION,
+        key,
       });
     }
-    res.render('comments', { story, comments });
-  } catch (error) {
-    console.error('Error in comments route:', error);
-    res.status(500).render('error', {
-      error: 'Server Error',
-      message: 'Unable to load comments. Please try again later.'
-    });
-  }
-});
 
-
-// Health check endpoints
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.get('/ready', (req, res) => {
-  res.status(200).json({ 
-    status: 'ready', 
-    cache: { size: cache.size, maxSize: MAX_CACHE_SIZE },
-    timestamp: new Date().toISOString()
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).render('error', {
-    error: 'Page Not Found',
-    message: 'The page you are looking for does not exist.'
-  });
-});
-
-// Cache status endpoint (for debugging)
-app.get('/cache-status', (req, res) => {
-  const status = {
-    size: cache.size,
-    entries: []
+    const ready = getCached("all-stories", { allowExpired: true }) !== null;
+    return {
+      cache: { entries, maxSize: MAX_CACHE_SIZE, size: cache.size },
+      lastStoryError,
+      lastStorySuccessAt,
+      ready,
+      status: ready ? (lastStoryError ? "degraded" : "ready") : "unavailable",
+    };
   };
-  
-  for (const [key, value] of cache.entries()) {
-    const age = Date.now() - value.timestamp;
-    const expiry = CACHE_DURATION - age;
-    status.entries.push({
-      key,
-      age: Math.round(age / 1000) + 's',
-      expiresIn: Math.round(expiry / 1000) + 's',
-      expired: expiry <= 0
-    });
-  }
-  
-  res.json(status);
-});
 
-// Pre-cache popular comments for better performance
-const preCachePopularComments = async () => {
+  return { fetchComments, fetchStories, getStatus };
+};
+
+const normaliseFilter = (filter) =>
+  typeof filter === "string" && VALID_FILTERS.has(filter) ? filter : "top-20";
+
+const normaliseStoryUrl = (value) => {
   try {
-    const allStories = await fetchAllStories();
-    
-    // Get stories from last 3 days
-    const threeDaysAgo = Date.now() / 1000 - (3 * 24 * 60 * 60);
-    const recentStories = allStories
-      .filter(story => story.time > threeDaysAgo)
-      .sort((a, b) => b.score - a.score) // Sort by score
-      .slice(0, 20); // Top 20
-    
-    console.log(`Pre-caching comments for ${recentStories.length} popular stories...`);
-    
-    // Pre-cache comments for these stories
-    for (const story of recentStories) {
-      try {
-        await fetchCommentsForStory(story.id);
-        // Small delay to be nice to the API
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (error) {
-        console.warn(`Failed to pre-cache comments for story ${story.id}:`, error.message);
-      }
-    }
-    
-    console.log('Pre-caching completed');
-  } catch (error) {
-    console.error('Error during pre-caching:', error.message);
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
   }
 };
 
-// Periodic cache refresh with better error handling
-const startCacheRefresh = () => {
-  setInterval(async () => {
-    console.log('Refreshing stories cache...');
+const serialiseForHtml = (value) =>
+  JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+
+const isValidId = (id) => /^\d+$/.test(id) && Number(id) > 0;
+
+const createApp = ({ storyService = createStoryService() } = {}) => {
+  const app = express();
+
+  app.disable("x-powered-by");
+  app.set("view engine", "ejs");
+  app.set("views", path.join(__dirname, "views"));
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
+        },
+      },
+    }),
+  );
+  app.use(express.static(path.join(__dirname, "public")));
+
+  app.get("/", async (request, response) => {
     try {
-      await fetchAllStories(); // This will refresh the cache
-      console.log('Stories cache refreshed successfully');
-      
-      // Also pre-cache popular comments
-      await preCachePopularComments();
+      const allStories = await storyService.fetchStories();
+      const sevenDaysAgo = Date.now() / 1000 - 7 * 24 * 60 * 60;
+      const recentStories = allStories.filter(
+        (story) => story.time > sevenDaysAgo,
+      );
+
+      response.render("index", {
+        bootstrapData: serialiseForHtml({
+          currentFilter: normaliseFilter(request.query.filter),
+          stories: recentStories,
+        }),
+      });
     } catch (error) {
-      console.error('Error refreshing cache (will retry in 5 minutes):', error.message);
-      // Don't crash, just log and continue
+      console.error(`Unable to load stories: ${error.message}`);
+      response.status(503).render("error", {
+        error: "Stories unavailable",
+        message:
+          "Unable to load Hacker News stories. Please try again shortly.",
+      });
     }
-  }, CACHE_DURATION); // Refresh every 5 minutes
+  });
+
+  app.get("/comments/:id", async (request, response) => {
+    const storyId = request.params.id;
+    if (!isValidId(storyId)) {
+      return response.status(400).render("error", {
+        error: "Invalid story ID",
+        message: "The requested story could not be found.",
+      });
+    }
+
+    try {
+      const { comments, story } = await storyService.fetchComments(storyId);
+      return response.render("comments", {
+        comments,
+        story,
+        storyUrl: normaliseStoryUrl(story.url),
+      });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return response.status(404).render("error", {
+          error: "Story not found",
+          message: "The requested story could not be found.",
+        });
+      }
+
+      console.error(`Unable to load comments for ${storyId}: ${error.message}`);
+      return response.status(503).render("error", {
+        error: "Comments unavailable",
+        message: "Unable to load comments. Please try again shortly.",
+      });
+    }
+  });
+
+  app.get("/cache-status", (request, response) => {
+    response.json(storyService.getStatus().cache);
+  });
+
+  app.get("/health", (request, response) => {
+    response.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/ready", (request, response) => {
+    const status = storyService.getStatus();
+    response.status(status.ready ? 200 : 503).json({
+      lastStoryError: status.lastStoryError,
+      lastStorySuccessAt: status.lastStorySuccessAt,
+      status: status.status,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.use((request, response) => {
+    response.status(404).render("error", {
+      error: "Page not found",
+      message: "The page you are looking for does not exist.",
+    });
+  });
+
+  return app;
 };
 
-const server = app.listen(port, async () => {
-  console.log(`Server listening on port ${port}`);
-  
-  // Start periodic cache refresh
-  startCacheRefresh();
-  
-  // Warm cache on startup with error handling
-  setTimeout(async () => {
-    try {
-      await fetchAllStories();
-      console.log('Initial cache warming completed');
-      
-      // Pre-cache popular comments
-      await preCachePopularComments();
-    } catch (error) {
-      console.error('Initial cache warming failed (will retry automatically):', error.message);
+const startServer = ({
+  app = createApp(),
+  logger = console,
+  port = process.env.PORT || 3000,
+  storyService,
+} = {}) => {
+  let refreshTimer = null;
+  const server = app.listen(port, () => {
+    logger.log(`Server listening on port ${port}`);
+
+    if (!storyService) {
+      return;
     }
-  }, 1000);
-});
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
-});
+    const refresh = async () => {
+      try {
+        await storyService.fetchStories({ force: true });
+        logger.log("Stories cache refreshed");
+      } catch (error) {
+        logger.error(`Stories cache refresh failed: ${error.message}`);
+      } finally {
+        refreshTimer = setTimeout(refresh, CACHE_DURATION);
+        refreshTimer.unref();
+      }
+    };
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
+    void refresh();
   });
-});
+
+  const shutdown = (signal) => {
+    logger.log(`${signal} received, shutting down`);
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+    }
+    server.close(() => process.exit(0));
+  };
+
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  return server;
+};
+
+if (require.main === module) {
+  const storyService = createStoryService();
+  startServer({ app: createApp({ storyService }), storyService });
+}
+
+module.exports = {
+  NotFoundError,
+  createApp,
+  createLimiter,
+  createStoryService,
+  isValidId,
+  normaliseFilter,
+  normaliseStoryUrl,
+  serialiseForHtml,
+  startServer,
+};
