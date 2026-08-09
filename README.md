@@ -46,7 +46,7 @@ docker run --publish 3000:3000 hn
 
 ### Node.js
 
-Node.js 22.12 or newer is required. The repository pins Node.js 22.23.2 through Mise.
+Node.js 24 or newer is required. The repository pins Node.js 24.19.0 through Mise.
 
 ```bash
 # Install dependencies exactly as locked
