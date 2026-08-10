@@ -1,8 +1,8 @@
 # HN
 
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node.js-22.12%2B-green.svg)](https://nodejs.org/)
+[![Licence](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node.js-24%2B-green.svg)](https://nodejs.org/)
 [![Status](https://img.shields.io/badge/status-active-success)](https://img.shields.io/badge/status-active-success)
 
 Self-hostable Hacker News frontend with secure server-side rendering, client-side filtering, and automatic dark mode.
@@ -96,6 +96,6 @@ PORT=3000  # Server port; defaults to 3000
 4. Run `mise run fmt` and `mise run check`.
 5. Submit a pull request.
 
-## License
+## Licence
 
 This project is licensed under AGPL-3.0. See [LICENSE](LICENSE) for details.

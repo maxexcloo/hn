@@ -70,7 +70,7 @@ Node's built-in test runner covers concurrency, request coalescing, stale-cache 
 ### Backend
 
 - **Framework**: Express.js with EJS templates
-- **Runtime**: Node.js 22.12+
+- **Runtime**: Node.js 24+
 - **Security**: Helmet and sanitize-html
 
 ### Frontend

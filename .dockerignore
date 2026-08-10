@@ -5,7 +5,7 @@
 AGENTS.md
 ARCHITECTURE.md
 README.md
-docker-compose.yml
+compose.yaml
 node_modules
 public/output.css
 test
