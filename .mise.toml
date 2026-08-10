@@ -1,7 +1,7 @@
 [tools]
 actionlint = "1.7.12"
 hadolint = "2.15.1"
-node = "24.19.0"
+node = "26.7.0"
 
 [tasks.build]
 description = "Build CSS"
