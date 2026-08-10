@@ -1,11 +1,7 @@
-.claude
-.git
-.github
+*.md
+.git*
 .mise.toml
-AGENTS.md
-ARCHITECTURE.md
-README.md
 compose.yaml
-node_modules
+node_modules/
 public/output.css
-test
+test/

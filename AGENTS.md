@@ -6,6 +6,8 @@
 - Keep browser code and source CSS in `public/`; treat `public/output.css` as
   generated output.
 - Keep EJS templates in `views/` and reusable fragments in `views/partials/`.
+- Keep only `AGENTS.md` and `README.md` as root Markdown files; put other project
+  documentation in `docs/`.
 - Keep tests in `test/` using Node.js's built-in test runner.
 
 ## Style
@@ -15,8 +17,9 @@
 - Keep comments minimal and specific to non-obvious security or business logic.
 - Sort unordered peer entries by value shape, then alphabetically within each
   shape. Preserve semantic, narrative and procedural order.
-- Update `README.md` and `ARCHITECTURE.md` when behaviour changes.
-- Use `.yaml` for GitHub Actions workflows.
+- Update `README.md` when behaviour changes.
+- Use `.yaml`, never `.yml`, for project-owned YAML files unless external tooling
+  requires a fixed filename.
 - Preserve `LICENSE` and its legal text; never relicense without explicit approval.
 - Use Australian English in project-owned prose and identifiers. Preserve external
   names and terminology.
