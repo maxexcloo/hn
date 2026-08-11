@@ -1,10 +1,10 @@
 <% comments.forEach((comment) => { %>
   <% if (comment && comment.by && comment.text) { %>
-    <article class="comment mb-2" data-comment-id="<%= comment.id %>">
-      <div class="border-l-2 border-gray-200 comment-header dark:border-hn-border-dark pl-2">
+    <article class="comment mb-2">
+      <div class="border-l-2 border-gray-200 dark:border-hn-border-dark pl-2">
         <div class="text-gray-500 text-xs">
           <button aria-expanded="true" class="collapse-btn font-mono mr-1" type="button">[-]</button>
-          <span class="font-medium"><%= comment.by %></span> | <%= new Date(comment.time * 1000).toLocaleString('en-AU') %>
+          <span class="font-medium"><%= comment.by %></span> | <%= new Date(comment.time * 1000).toLocaleString('en-AU', { timeZone: 'UTC', timeZoneName: 'short' }) %>
         </div>
       </div>
       <div class="border-l-2 border-gray-200 comment-content dark:border-hn-border-dark pb-2 pl-2">
@@ -13,7 +13,7 @@
         </div>
         <% if (comment.children && comment.children.length > 0) { %>
           <div class="comment-children">
-            <%- include('comment', { comments: comment.children, level: level + 1 }) %>
+            <%- include('comment', { comments: comment.children }) %>
           </div>
         <% } %>
       </div>

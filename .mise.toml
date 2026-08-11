@@ -16,7 +16,7 @@ npm run check
 """
 
 [tasks.dev]
-description = "Start development server with auto-rebuild"
+description = "Start development server with automatic restart"
 run = "npm run dev"
 
 [tasks.fmt]

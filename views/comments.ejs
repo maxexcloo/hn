@@ -27,7 +27,7 @@
       <% if (comments.length === 0) { %>
         <p class="italic text-gray-500 text-xs">No comments yet.</p>
       <% } else { %>
-        <%- include('partials/comment', { comments, level: 0 }) %>
+        <%- include('partials/comment', { comments }) %>
       <% } %>
     </main>
   </body>

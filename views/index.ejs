@@ -18,8 +18,9 @@
         <button class="filter-btn mr-2 no-underline px-2 py-1 rounded" data-filter="all" type="button">All</button>
       </div>
 
-      <div id="stories-container"></div>
-      <p class="mt-8 text-center text-gray-500" id="loading">Loading stories…</p>
+      <div id="stories-container">
+        <%- include('partials/stories', { storyGroups }) %>
+      </div>
     </main>
 
     <script id="bootstrap-data" type="application/json"><%- bootstrapData %></script>

@@ -53,9 +53,9 @@ const groupByDay = (stories) => {
   stories.forEach((story) => {
     const date = new Date(story.time * 1000);
     const key = [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, "0"),
-      String(date.getDate()).padStart(2, "0"),
+      date.getUTCFullYear(),
+      String(date.getUTCMonth() + 1).padStart(2, "0"),
+      String(date.getUTCDate()).padStart(2, "0"),
     ].join("-");
 
     if (!groups.has(key)) {
@@ -63,6 +63,7 @@ const groupByDay = (stories) => {
         label: date.toLocaleDateString("en-AU", {
           day: "numeric",
           month: "short",
+          timeZone: "UTC",
           weekday: "short",
           year: "numeric",
         }),
@@ -172,7 +173,6 @@ const applyFilter = (filter) => {
     );
   }
 
-  document.getElementById("loading").hidden = true;
   updateFilterButtons(filter);
 };
 

@@ -1,0 +1,26 @@
+<% if (storyGroups.length === 0) { %>
+  <p class="italic text-gray-500 text-xs">No recent stories found.</p>
+<% } %>
+
+<% storyGroups.forEach((group) => { %>
+  <section class="mb-8">
+    <h2 class="text-sm font-bold mb-3 text-gray-600 dark:text-gray-400"><%= group.label %></h2>
+    <ol class="list-none pl-0">
+      <% group.stories.forEach((story, index) => { %>
+        <li class="mb-2 flex items-start">
+          <span class="text-gray-500 text-xs mr-2 min-w-[20px] text-right"><%= index + 1 %>.</span>
+          <div class="flex-1">
+            <a class="text-black dark:text-gray-200 no-underline text-sm visited:text-gray-500 dark:visited:text-gray-400" href="<%= story.storyUrl || `/comments/${story.id}` %>"<% if (story.storyUrl) { %> rel="nofollow noreferrer"<% } %>><%= story.title %></a>
+            <% if (story.storyHost) { %>
+              <span class="text-gray-500 text-xs ml-1">(<%= story.storyHost %>)</span>
+            <% } %>
+            <div class="text-gray-500 text-xs mt-0.5">
+              <%= story.score %> points by <%= story.by %> |
+              <a class="text-gray-500 no-underline hover:underline" href="/comments/<%= story.id %>"><%= story.descendants || 0 %> comments</a>
+            </div>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
+  </section>
+<% }); %>

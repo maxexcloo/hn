@@ -20,12 +20,12 @@ Visit `http://localhost:3000` to browse filtered Hacker News stories.
 ## Features
 
 - **Accessible comments** — Collapse and expand comment threads with pointer or keyboard controls
-- **Bounded API access** — Shared concurrency, depth, response-size, and timeout limits
+- **Bounded API access** — Shared concurrency, depth, per-item and aggregate response-size, and timeout limits
 - **Dark mode** — Automatic via `prefers-color-scheme`
 - **Docker ready** — Health-checked multi-platform containers for linux/amd64 and linux/arm64
 - **Graceful degradation** — Stale-cache fallback and informative upstream error pages
 - **Hash routing** — Shareable URLs such as `/#top-20`
-- **Intelligent caching** — Five-minute, 100-entry LRU cache with request coalescing
+- **Intelligent caching** — Five-minute LRU cache bounded to 100 entries and 32 MiB, with request coalescing
 - **Secure rendering** — Allow-list comment sanitisation and a strict Content Security Policy
 - **Smart filtering** — Per-day Top 10, Top 20, Top 50%, and All filters
 - **Supply-chain metadata** — Multi-architecture images with provenance and an SBOM
@@ -46,7 +46,7 @@ docker run --publish 3000:3000 hn
 
 ### Node.js
 
-Node.js 24 or newer is required. The repository pins Node.js 24.19.0 through Mise.
+Node.js 24 or newer is required. The repository and container pin Node.js 26.7.0.
 
 ```bash
 # Install dependencies exactly as locked
@@ -84,7 +84,7 @@ PORT=3000  # Server port; defaults to 3000
 
 ### Operational Endpoints
 
-- `/cache-status` — LRU cache entries and ages
+- `/cache-status` — LRU cache usage, entries, and ages
 - `/health` — Process liveness
 - `/ready` — Story-data readiness and degraded-state information
 

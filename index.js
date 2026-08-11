@@ -8,14 +8,20 @@ const API_CONCURRENCY = 20;
 const API_RESPONSE_LIMIT = 1024 * 1024;
 const API_TIMEOUT = 10 * 1000;
 const CACHE_DURATION = 5 * 60 * 1000;
+const CACHE_SIZE_LIMIT = 32 * 1024 * 1024;
 const COMMENT_DEPTH_LIMIT = 20;
 const COMMENT_LIMIT = 500;
+const COMMENT_REQUEST_TIMEOUT = 30 * 1000;
+const COMMENT_RESPONSE_LIMIT = 8 * 1024 * 1024;
 const MAX_CACHE_SIZE = 100;
 const MAX_COMMENT_REQUESTS = 5;
 const MAX_STORY_IDS = 500;
+const SHUTDOWN_TIMEOUT = 10 * 1000;
+const STORY_RESPONSE_LIMIT = 16 * 1024 * 1024;
 const VALID_FILTERS = new Set(["all", "top-10", "top-20", "top-50"]);
 
 class NotFoundError extends Error {}
+class OperationLimitError extends Error {}
 
 const createLimiter = (concurrency) => {
   const queue = [];
@@ -50,10 +56,16 @@ const createStoryService = ({
   fetchImpl = globalThis.fetch,
   logger = console,
   now = Date.now,
+  apiResponseLimit = API_RESPONSE_LIMIT,
+  apiTimeout = API_TIMEOUT,
+  commentRequestTimeout = COMMENT_REQUEST_TIMEOUT,
+  commentResponseLimit = COMMENT_RESPONSE_LIMIT,
+  storyResponseLimit = STORY_RESPONSE_LIMIT,
 } = {}) => {
   const cache = new Map();
   const commentRequests = new Map();
   const limitRequest = createLimiter(API_CONCURRENCY);
+  let cacheSize = 0;
   let lastStoryError = null;
   let lastStorySuccessAt = null;
   let storiesRequest = null;
@@ -61,6 +73,7 @@ const createStoryService = ({
   const deleteOldestCacheEntry = () => {
     const oldestKey = cache.keys().next().value;
     if (oldestKey !== undefined) {
+      cacheSize -= cache.get(oldestKey).size;
       cache.delete(oldestKey);
     }
   };
@@ -82,16 +95,37 @@ const createStoryService = ({
   };
 
   const setCached = (key, data) => {
+    const size = Buffer.byteLength(JSON.stringify(data));
+    if (size > CACHE_SIZE_LIMIT) {
+      return;
+    }
+
+    const existing = cache.get(key);
+    if (existing) {
+      cacheSize -= existing.size;
+    }
     cache.delete(key);
-    while (cache.size >= MAX_CACHE_SIZE) {
+    while (
+      cache.size >= MAX_CACHE_SIZE ||
+      cacheSize + size > CACHE_SIZE_LIMIT
+    ) {
       deleteOldestCacheEntry();
     }
-    cache.set(key, { data, timestamp: now() });
+    cache.set(key, { data, size, timestamp: now() });
+    cacheSize += size;
   };
 
-  const fetchJson = async (pathname) => {
+  const fetchJson = async (pathname, { budget, signal } = {}) => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT);
+    const abortFromParent = () => controller.abort(signal.reason);
+    if (signal) {
+      if (signal.aborted) {
+        abortFromParent();
+      } else {
+        signal.addEventListener("abort", abortFromParent, { once: true });
+      }
+    }
+    const timeout = setTimeout(() => controller.abort(), apiTimeout);
     const url = new URL(pathname, apiBaseUrl);
 
     try {
@@ -107,8 +141,10 @@ const createStoryService = ({
       }
 
       const contentLength = Number(response.headers.get("content-length"));
-      if (contentLength > API_RESPONSE_LIMIT) {
-        throw new Error(`HN API response exceeded ${API_RESPONSE_LIMIT} bytes`);
+      if (contentLength > apiResponseLimit) {
+        throw new OperationLimitError(
+          `HN API response exceeded ${apiResponseLimit} bytes`,
+        );
       }
 
       const chunks = [];
@@ -116,17 +152,30 @@ const createStoryService = ({
       for await (const chunk of response.body) {
         const buffer = Buffer.from(chunk);
         size += buffer.length;
-        if (size > API_RESPONSE_LIMIT) {
+        if (size > apiResponseLimit) {
           controller.abort();
-          throw new Error(
-            `HN API response exceeded ${API_RESPONSE_LIMIT} bytes`,
+          throw new OperationLimitError(
+            `HN API response exceeded ${apiResponseLimit} bytes`,
           );
+        }
+        if (budget && budget.used + buffer.length > budget.limit) {
+          const error = new OperationLimitError(
+            `HN API operation exceeded ${budget.limit} bytes`,
+          );
+          budget.abort(error);
+          throw error;
+        }
+        if (budget) {
+          budget.used += buffer.length;
         }
         chunks.push(buffer);
       }
 
       return JSON.parse(Buffer.concat(chunks).toString("utf8"));
     } catch (error) {
+      if (signal?.aborted && signal.reason instanceof Error) {
+        throw signal.reason;
+      }
       if (error.name === "AbortError") {
         throw new Error(`HN API request timed out for ${pathname}`, {
           cause: error,
@@ -135,73 +184,133 @@ const createStoryService = ({
       throw error;
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener("abort", abortFromParent);
     }
   };
 
-  const fetchItem = (id) => limitRequest(() => fetchJson(`item/${id}.json`));
+  const fetchItem = (id, options) =>
+    limitRequest(() => fetchJson(`item/${id}.json`, options));
+
+  const createBudget = (limit, controller) => ({
+    abort: (error) => controller.abort(error),
+    limit,
+    used: 0,
+  });
+
+  const projectStory = (story) => ({
+    by: story.by || "unknown",
+    descendants: Number.isSafeInteger(story.descendants)
+      ? story.descendants
+      : 0,
+    id: story.id,
+    score: Number.isFinite(story.score) ? story.score : 0,
+    time: story.time,
+    title: story.title,
+    type: "story",
+    ...(typeof story.url === "string" ? { url: story.url } : {}),
+  });
 
   const sanitiseComment = (comment) => ({
-    ...comment,
+    by: comment.by,
+    id: comment.id,
     text: sanitizeHtml(comment.text || "", {
       allowedAttributes: { a: ["href", "rel"] },
       allowedSchemes: ["http", "https"],
       allowedTags: ["a", "code", "i", "p", "pre"],
+      allowProtocolRelative: false,
       transformTags: {
-        a: sanitizeHtml.simpleTransform(
-          "a",
-          { rel: "nofollow noreferrer" },
-          true,
-        ),
+        a: (tagName, attributes) => {
+          const itemMatch = attributes.href?.match(/^\/?item\?id=(\d+)$/);
+          const itemId = itemMatch ? Number(itemMatch[1]) : null;
+          const href = Number.isSafeInteger(itemId)
+            ? `/comments/${itemId}`
+            : attributes.href;
+          return {
+            attribs: {
+              ...attributes,
+              ...(href ? { href } : {}),
+              rel: "nofollow noreferrer",
+            },
+            tagName,
+          };
+        },
       },
     }),
+    time: comment.time,
   });
 
   const fetchCommentsUncached = async (storyId) => {
-    const story = await fetchItem(storyId);
-    if (!story || story.type !== "story" || !story.title) {
-      throw new NotFoundError("Story not found");
-    }
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () =>
+        controller.abort(
+          new OperationLimitError("Comment request exceeded its deadline"),
+        ),
+      commentRequestTimeout,
+    );
+    const options = {
+      budget: createBudget(commentResponseLimit, controller),
+      signal: controller.signal,
+    };
 
-    const visited = new Set();
-    let remainingComments = COMMENT_LIMIT;
-
-    const fetchComment = async (commentId, depth) => {
-      if (
-        depth > COMMENT_DEPTH_LIMIT ||
-        remainingComments <= 0 ||
-        visited.has(commentId)
-      ) {
-        return null;
+    try {
+      const rawStory = await fetchItem(storyId, options);
+      if (!rawStory || rawStory.type !== "story" || !rawStory.title) {
+        throw new NotFoundError("Story not found");
       }
 
-      remainingComments -= 1;
-      visited.add(commentId);
+      const visited = new Set();
+      let remainingComments = COMMENT_LIMIT;
 
-      try {
-        const comment = await fetchItem(commentId);
-        if (!comment || comment.type !== "comment") {
+      const fetchComment = async (commentId, depth) => {
+        if (
+          !Number.isSafeInteger(commentId) ||
+          commentId <= 0 ||
+          depth > COMMENT_DEPTH_LIMIT ||
+          remainingComments <= 0 ||
+          visited.has(commentId)
+        ) {
           return null;
         }
 
-        const children = await Promise.all(
-          (comment.kids || []).map((id) => fetchComment(id, depth + 1)),
-        );
+        remainingComments -= 1;
+        visited.add(commentId);
 
-        return {
-          ...sanitiseComment(comment),
-          children: children.filter(Boolean),
-        };
-      } catch (error) {
-        logger.warn(`Failed to fetch comment ${commentId}: ${error.message}`);
-        return null;
-      }
-    };
+        try {
+          const comment = await fetchItem(commentId, options);
+          if (!comment || comment.type !== "comment") {
+            return null;
+          }
 
-    const comments = await Promise.all(
-      (story.kids || []).map((id) => fetchComment(id, 0)),
-    );
+          const children = await Promise.all(
+            (comment.kids || []).map((id) => fetchComment(id, depth + 1)),
+          );
 
-    return { comments: comments.filter(Boolean), story };
+          return {
+            ...sanitiseComment(comment),
+            children: children.filter(Boolean),
+          };
+        } catch (error) {
+          if (error instanceof OperationLimitError) {
+            throw error;
+          }
+          logger.warn(`Failed to fetch comment ${commentId}: ${error.message}`);
+          return null;
+        }
+      };
+
+      const comments = await Promise.all(
+        (rawStory.kids || []).map((id) => fetchComment(id, 0)),
+      );
+
+      return {
+        comments: comments.filter(Boolean),
+        story: projectStory(rawStory),
+      };
+    } finally {
+      clearTimeout(timeout);
+      controller.abort();
+    }
   };
 
   const fetchComments = async (storyId) => {
@@ -241,31 +350,52 @@ const createStoryService = ({
   };
 
   const fetchStoriesUncached = async () => {
-    const storyIds = await limitRequest(() => fetchJson("topstories.json"));
-    if (!Array.isArray(storyIds)) {
-      throw new Error("HN API returned an invalid story list");
+    const controller = new AbortController();
+    const options = {
+      budget: createBudget(storyResponseLimit, controller),
+      signal: controller.signal,
+    };
+    try {
+      const storyIds = await limitRequest(() =>
+        fetchJson("topstories.json", options),
+      );
+      if (!Array.isArray(storyIds)) {
+        throw new Error("HN API returned an invalid story list");
+      }
+
+      const stories = await Promise.all(
+        storyIds
+          .filter((id) => Number.isSafeInteger(id) && id > 0)
+          .slice(0, MAX_STORY_IDS)
+          .map((id) =>
+            fetchItem(id, options).catch((error) => {
+              if (error instanceof OperationLimitError) {
+                throw error;
+              }
+              logger.warn(`Failed to fetch story ${id}: ${error.message}`);
+              return null;
+            }),
+          ),
+      );
+
+      const validStories = stories.filter(
+        (story) =>
+          story &&
+          story.type === "story" &&
+          typeof story.title === "string" &&
+          story.title &&
+          Number.isSafeInteger(story.id) &&
+          story.id > 0 &&
+          Number.isFinite(story.time),
+      );
+      if (validStories.length === 0) {
+        throw new Error("HN API returned no valid stories");
+      }
+
+      return validStories.map(projectStory);
+    } finally {
+      controller.abort();
     }
-
-    const stories = await Promise.all(
-      storyIds
-        .filter((id) => Number.isSafeInteger(id) && id > 0)
-        .slice(0, MAX_STORY_IDS)
-        .map((id) =>
-          fetchItem(id).catch((error) => {
-            logger.warn(`Failed to fetch story ${id}: ${error.message}`);
-            return null;
-          }),
-        ),
-    );
-
-    const validStories = stories.filter(
-      (story) => story && story.type === "story" && story.title,
-    );
-    if (validStories.length === 0) {
-      throw new Error("HN API returned no valid stories");
-    }
-
-    return validStories;
   };
 
   const fetchStories = async ({ force = false } = {}) => {
@@ -312,9 +442,15 @@ const createStoryService = ({
       });
     }
 
-    const ready = getCached("all-stories", { allowExpired: true }) !== null;
+    const ready = cache.has("all-stories");
     return {
-      cache: { entries, maxSize: MAX_CACHE_SIZE, size: cache.size },
+      cache: {
+        bytes: cacheSize,
+        entries,
+        maxBytes: CACHE_SIZE_LIMIT,
+        maxSize: MAX_CACHE_SIZE,
+        size: cache.size,
+      },
       lastStoryError,
       lastStorySuccessAt,
       ready,
@@ -337,6 +473,61 @@ const normaliseStoryUrl = (value) => {
   }
 };
 
+const filterStories = (stories, filter) => {
+  const byScore = [...stories].sort(
+    (first, second) => second.score - first.score,
+  );
+  const limit = {
+    "top-10": 10,
+    "top-20": 20,
+    "top-50": Math.ceil(stories.length * 0.5),
+  }[filter];
+
+  return (limit ? byScore.slice(0, limit) : [...stories]).sort(
+    (first, second) => second.time - first.time,
+  );
+};
+
+const groupStories = (stories, filter) => {
+  const groups = new Map();
+  for (const story of stories) {
+    const date = new Date(story.time * 1000);
+    const key = [
+      date.getUTCFullYear(),
+      String(date.getUTCMonth() + 1).padStart(2, "0"),
+      String(date.getUTCDate()).padStart(2, "0"),
+    ].join("-");
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        label: date.toLocaleDateString("en-AU", {
+          day: "numeric",
+          month: "short",
+          timeZone: "UTC",
+          weekday: "short",
+          year: "numeric",
+        }),
+        stories: [],
+      });
+    }
+    groups.get(key).stories.push(story);
+  }
+
+  return [...groups.entries()]
+    .sort(([first], [second]) => second.localeCompare(first))
+    .map(([, group]) => ({
+      ...group,
+      stories: filterStories(group.stories, filter).map((story) => {
+        const storyUrl = normaliseStoryUrl(story.url);
+        return {
+          ...story,
+          storyHost: storyUrl ? new URL(storyUrl).hostname : null,
+          storyUrl,
+        };
+      }),
+    }));
+};
+
 const serialiseForHtml = (value) =>
   JSON.stringify(value)
     .replaceAll("<", "\\u003c")
@@ -345,7 +536,13 @@ const serialiseForHtml = (value) =>
     .replaceAll("\u2028", "\\u2028")
     .replaceAll("\u2029", "\\u2029");
 
-const isValidId = (id) => /^\d+$/.test(id) && Number(id) > 0;
+const isValidId = (id) => {
+  if (!/^\d+$/.test(id)) {
+    return false;
+  }
+  const value = Number(id);
+  return Number.isSafeInteger(value) && value > 0;
+};
 
 const createApp = ({ storyService = createStoryService() } = {}) => {
   const app = express();
@@ -374,12 +571,14 @@ const createApp = ({ storyService = createStoryService() } = {}) => {
       const recentStories = allStories.filter(
         (story) => story.time > sevenDaysAgo,
       );
+      const currentFilter = normaliseFilter(request.query.filter);
 
       response.render("index", {
         bootstrapData: serialiseForHtml({
-          currentFilter: normaliseFilter(request.query.filter),
+          currentFilter,
           stories: recentStories,
         }),
+        storyGroups: groupStories(recentStories, currentFilter),
       });
     } catch (error) {
       console.error(`Unable to load stories: ${error.message}`);
@@ -453,12 +652,21 @@ const createApp = ({ storyService = createStoryService() } = {}) => {
 
 const startServer = ({
   app = createApp(),
+  exit = process.exit,
   logger = console,
   port = process.env.PORT || 3000,
+  shutdownTimeout = SHUTDOWN_TIMEOUT,
   storyService,
 } = {}) => {
+  let forceTimer = null;
   let refreshTimer = null;
-  const server = app.listen(port, () => {
+  let shuttingDown = false;
+  const server = app.listen(port, (error) => {
+    if (error) {
+      logger.error(`Unable to start server: ${error.message}`);
+      exit(1);
+      return;
+    }
     logger.log(`Server listening on port ${port}`);
 
     if (!storyService) {
@@ -481,15 +689,32 @@ const startServer = ({
   });
 
   const shutdown = (signal) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    process.removeListener("SIGINT", onSigint);
+    process.removeListener("SIGTERM", onSigterm);
     logger.log(`${signal} received, shutting down`);
     if (refreshTimer) {
       clearTimeout(refreshTimer);
     }
-    server.close(() => process.exit(0));
+    forceTimer = setTimeout(() => {
+      logger.error("Graceful shutdown timed out");
+      server.closeAllConnections?.();
+      exit(1);
+    }, shutdownTimeout);
+    forceTimer.unref();
+    server.close(() => {
+      clearTimeout(forceTimer);
+      exit(0);
+    });
   };
 
-  process.once("SIGINT", () => shutdown("SIGINT"));
-  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  const onSigint = () => shutdown("SIGINT");
+  const onSigterm = () => shutdown("SIGTERM");
+  process.once("SIGINT", onSigint);
+  process.once("SIGTERM", onSigterm);
   return server;
 };
 
@@ -500,9 +725,12 @@ if (require.main === module) {
 
 module.exports = {
   NotFoundError,
+  OperationLimitError,
   createApp,
   createLimiter,
   createStoryService,
+  filterStories,
+  groupStories,
   isValidId,
   normaliseFilter,
   normaliseStoryUrl,
